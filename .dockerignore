@@ -1,0 +1,7 @@
+se/
+.git/
+__pycache__/
+*.pyc
+.gemini/
+output.jpg
+vis_depth/

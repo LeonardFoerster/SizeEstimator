@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+se/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+# Virtual Environment
+.venv
+se/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+.gemini/
+output.jpg
+vis_depth/
+video_depth_vis/
+*.jpg
+*.png
+*.mp4
+
+# Checkpoints (Large files)
+Depth-Anything-V2/checkpoints/
+Depth-Anything-V2/metric_depth/checkpoints/
+*.pth
+*.pt
+
+# System
+.DS_Store
+Thumbs.db
