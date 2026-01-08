@@ -1,0 +1,67 @@
+# Size Estimator - Future Update Guide
+
+This document outlines the roadmap for improving the accuracy and capabilities of the Size Estimator project. Choose the scenario that best fits your goals and budget (currently $150 AWS Credits).
+
+---
+
+## Scenario 1: "Quick Wins" (Software Optimization)
+**Goal:** Maximize accuracy with the current architecture (Lambda CPU). No extra costs.
+
+1.  **Switch to Aruco Markers**
+    *   **Why:** Instead of guessing the reference object's size and position (e.g., "bottle"), use a printed Aruco marker (QR-code like) with a known size (e.g., 5x5 cm).
+    *   **How:** Use OpenCV's `aruco` module to detect the marker. It provides precise sub-pixel corners and exact pose estimation (distance & angle).
+    *   **Impact:** Eliminates the biggest error source (reference scaling).
+
+2.  **Implement Segment Anything Model (FastSAM)**
+    *   **Why:** Bounding boxes (rectangles) include background depth, skewing measurements. Segmentation masks (exact pixel outlines) isolate the object.
+    *   **How:** Replace YOLO with FastSAM (ONNX version). Calculate the width based on the mask's geometry, not the box.
+    *   **Impact:** Much more accurate width measurement for irregular objects.
+
+3.  **Lens Distortion Correction**
+    *   **Why:** Smartphone cameras distort images at the edges (fisheye effect), making objects look smaller/larger.
+    *   **How:** Calibrate the camera once (checkerboard) or use the phone's internal calibration data if available (requires frontend change to read EXIF/API).
+
+---
+
+## Scenario 2: "Cloud AI Power" (AWS Bedrock Integration) - **RECOMMENDED**
+**Goal:** Use your AWS Credits to add "human-like" understanding and validation.
+
+1.  **Enable AWS Bedrock Access**
+    *   **Action:** Go to AWS Console -> Bedrock -> Model Access. Request access to "Claude 3.5 Sonnet" or "Claude 3 Haiku".
+    *   **IAM:** Add `bedrock:InvokeModel` permission to your Lambda execution role.
+
+2.  **"AI Review" Feature**
+    *   **Concept:** After the math-based calculation, send the image + results to Claude 3.5 Sonnet.
+    *   **Prompt:** "I have estimated this object to be 12cm wide. Here is the image. Based on the context (it's next to a standard 0.5L coke bottle), is this plausible? Correct the estimate if perspective distortion is obvious."
+    *   **Impact:** Catches gross errors (e.g., "That's a car, not a toy car") and handles complex perspective scenes better than simple math.
+
+3.  **OCR for Reference**
+    *   **Concept:** Use Bedrock/Rekognition to read text on the reference object (e.g., "500ml", "Credit Card").
+    *   **Impact:** Auto-detects the reference size without user input.
+
+---
+
+## Scenario 3: "High-End Research" (GPU & 3D Reconstruction)
+**Goal:** State-of-the-art precision. High cost/complexity.
+
+1.  **Migrate to GPU (SageMaker/EC2)**
+    *   **Why:** Lambda CPU is too weak for the best models.
+    *   **Action:** Deploy the backend on a `g4dn.xlarge` instance using AWS SageMaker Endpoints.
+
+2.  **Single-View 3D Reconstruction (Dust3R / TripoSR)**
+    *   **Concept:** Instead of a 2D depth map, generate a full 3D point cloud from the single image.
+    *   **How:** Feed the image into Dust3R. Measure the distance between 3D points directly in the point cloud.
+    *   **Impact:** Solves the "perspective problem" almost completely.
+
+3.  **Stereo / Multi-View Upload**
+    *   **Concept:** Allow users to upload 2-3 photos of the same object from slightly different angles.
+    *   **How:** Use Photogrammetry (COLMAP or similar) to reconstruct the scene.
+    *   **Impact:** Millimeter-level precision (industrial grade).
+
+---
+
+## Immediate Next Steps (To execute Scenario 2)
+
+1.  **AWS Console:** Enable "Claude 3 Sonnet" in Bedrock Model Access.
+2.  **AWS IAM:** Attach policy `AmazonBedrockFullAccess` (or specific) to `size_estimator_function-role`.
+3.  **Code:** Update `server.py` to import `boto3` and call the Bedrock Runtime API.

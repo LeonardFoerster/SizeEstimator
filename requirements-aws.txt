@@ -11,3 +11,5 @@ huggingface_hub
 transformers
 python-dotenv
 onnxruntime
+boto3
+Pillow

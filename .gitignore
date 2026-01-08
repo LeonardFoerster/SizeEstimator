@@ -17,6 +17,9 @@ nosetests.xml
 coverage.xml
 *.cover
 *.log
+*.onnx
+*.zip
+*.deb
 .pytest_cache/
 .mypy_cache/
 .hypothesis/
@@ -40,6 +43,13 @@ video_depth_vis/
 *.png
 *.mp4
 
+#build artifcats
+dist/
+build/
+node_modules/
+aws/
+*.aws
+
 # Checkpoints (Large files)
 Depth-Anything-V2/checkpoints/
 Depth-Anything-V2/metric_depth/checkpoints/
@@ -49,3 +59,13 @@ Depth-Anything-V2/metric_depth/checkpoints/
 # System
 .DS_Store
 Thumbs.db
+
+# AWS Specific (local)
+.aws/              # AWS CLI config/credentials (though usually in ~)
+.terraform/        # Terraform state/config (if used locally)
+.serverless/       # Serverless framework artifacts (if used)
+*.env              # Environment variables that might contain AWS key
+
+aws.txt
+manual.txt
+context.txt

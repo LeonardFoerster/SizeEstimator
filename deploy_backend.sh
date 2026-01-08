@@ -25,10 +25,22 @@ docker tag $ECR_REPO_NAME:latest $ECR_URI
 echo "4. Pushing Image to ECR..."
 docker push $ECR_URI
 
-echo "5. Updating Lambda Function..."
+echo "5. Updating Lambda Function Code..."
 aws lambda update-function-code \
     --function-name $LAMBDA_FUNCTION_NAME \
     --image-uri $ECR_URI \
+    --region $AWS_REGION
+
+echo "Waiting for code update to complete..."
+aws lambda wait function-updated --function-name $LAMBDA_FUNCTION_NAME --region $AWS_REGION
+
+echo "6. Updating Lambda Configuration (Memory: 3008MB, Timeout: 300s, Storage: 3GB)..."
+aws lambda update-function-configuration \
+    --function-name $LAMBDA_FUNCTION_NAME \
+    --memory-size 3008 \
+    --timeout 300 \
+    --ephemeral-storage '{"Size": 3072}' \
+    --environment "Variables={MODEL_BUCKET=size-estimator-models-${AWS_ACCOUNT_ID}}" \
     --region $AWS_REGION
 
 echo "Done! Backend deployed."
