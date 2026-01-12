@@ -2,32 +2,26 @@ import sys
 import os
 import logging
 
-# Immediate debug print
 print("DEBUG: server.py is starting initialization...", flush=True)
 
-# Light imports only
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# --- Configuration ---
 YOLO_MODEL_NAME = os.getenv("YOLO_MODEL_NAME", "yolo11n.pt")
 DEPTH_ONNX_PATH = os.getenv("DEPTH_ONNX_PATH", "depth_anything_v2_vitl.onnx")
 DEFAULT_REF_CLASS = os.getenv("DEFAULT_REF_CLASS", "bottle")
 DEFAULT_REF_WIDTH = float(os.getenv("DEFAULT_REF_WIDTH", "7.0"))
 
-# --- Global State ---
 models = {}
 startup_error = None
 
 class OnnxDepthModel:
     def __init__(self, model_path):
-        # Lazy imports inside the class
         import onnxruntime as ort
         import numpy as np
         
@@ -39,7 +33,6 @@ class OnnxDepthModel:
         self.input_name = self.session.get_inputs()[0].name
         self.input_shape = self.session.get_inputs()[0].shape
         
-        # Robustly handle input dimensions (can be int, None, or string for dynamic axes)
         h_dim = self.input_shape[2]
         w_dim = self.input_shape[3]
         
@@ -53,7 +46,6 @@ class OnnxDepthModel:
         else:
             self.input_width = 518
             
-        # Ensure they are ints
         self.input_height = int(self.input_height)
         self.input_width = int(self.input_width)
         
@@ -94,7 +86,6 @@ class OnnxDepthModel:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # We no longer load models here to ensure fast startup for Lambda Adapter
     print("DEBUG: Application starting up (lazy loading enabled)...")
     yield
     models.clear()
@@ -110,7 +101,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global Exception Handler
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
@@ -133,10 +123,6 @@ def get_or_load_models():
 
     print("DEBUG: Checking models...")
     
-    # Paths (Lambda is read-only except /tmp)
-    # If we are in Lambda (determined by env var or path), we might need to use /tmp
-    # We prefer /tmp for downloaded models
-    
     local_yolo_path = YOLO_MODEL_NAME
     local_depth_path = DEPTH_ONNX_PATH
     
@@ -153,22 +139,17 @@ def get_or_load_models():
             
             if not bucket_name:
                 print(f"WARNING: No MODEL_BUCKET set. Cannot download {filename}. Expecting local file.")
-                return filename # Fallback to hoping it's in the CWD
+                return filename 
                 
             print(f"Downloading {filename} from S3 bucket {bucket_name} to {target_path}...")
-            # Ensure directory exists
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
             s3.download_file(bucket_name, filename, target_path)
             print(f"Download of {filename} complete.")
             return target_path
 
-        # Determine where to look/save
-        # On Lambda, use /tmp. On local, use current dir.
-        # simple check: if generic path exists, use it. if not, try /tmp.
         
         real_yolo_path = YOLO_MODEL_NAME
         if not os.path.exists(real_yolo_path):
-             # Try /tmp
              tmp_path = f"/tmp/{YOLO_MODEL_NAME}"
              real_yolo_path = download_if_needed(YOLO_MODEL_NAME, tmp_path)
 
@@ -177,7 +158,6 @@ def get_or_load_models():
              tmp_path = f"/tmp/{DEPTH_ONNX_PATH}"
              real_depth_path = download_if_needed(DEPTH_ONNX_PATH, tmp_path)
 
-        # Lazy import explicitly for loading
         from ultralytics import YOLO
         
         if 'yolo' not in models:
@@ -198,7 +178,7 @@ def get_or_load_models():
 
 @app.get("/")
 def health_check():
-    import os # ensure os is available
+    import os 
     if startup_error:
         return {
             "status": "error", 
@@ -215,12 +195,10 @@ async def predict(
     ref_class: str = Form(DEFAULT_REF_CLASS),
     ref_width: float = Form(DEFAULT_REF_WIDTH)
 ):
-    # Lazy imports for request handling
     import cv2
     import numpy as np
     import base64
     
-    # Ensure models are loaded
     get_or_load_models()
 
     if startup_error:
@@ -229,20 +207,15 @@ async def predict(
     contents = await file.read()
     print(f"DEBUG: Received file '{file.filename}' with size {len(contents)} bytes")
 
-    # Try loading with OpenCV first
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Fallback to Pillow if OpenCV fails
     if img is None:
         print("DEBUG: cv2.imdecode failed, trying PIL...")
         try:
             from PIL import Image
             import io
             image_pil = Image.open(io.BytesIO(contents))
-            # Convert to RGB if needed (OpenCV expects BGR usually, but let's stick to standard)
-            # Actually OpenCV uses BGR. PIL uses RGB.
-            # Let's convert PIL RGB -> OpenCV BGR
             image_pil = image_pil.convert('RGB') 
             img = np.array(image_pil) 
             img = img[:, :, ::-1].copy() # RGB to BGR
@@ -280,9 +253,6 @@ async def predict(
             center_x = min(max(center_x, 0), depth_map.shape[1] - 1)
             center_y = min(max(center_y, 0), depth_map.shape[0] - 1)
             
-            # --- SMART DEPTH SAMPLING START ---
-            # Extract the Region of Interest (ROI) from the depth map
-            # Ensure coordinates are within bounds
             d_y1 = max(0, y1)
             d_y2 = min(depth_map.shape[0], y2)
             d_x1 = max(0, x1)
@@ -292,26 +262,21 @@ async def predict(
             
             obj_depth = 0.0
             if depth_roi.size > 0:
-                # Crop to the central 50% to avoid edge noise/background
                 h_roi, w_roi = depth_roi.shape
                 crop_h = int(h_roi * 0.25)
                 crop_w = int(w_roi * 0.25)
                 
-                # Ensure we don't crop to nothing
                 if crop_h * 2 < h_roi and crop_w * 2 < w_roi:
                     depth_roi_central = depth_roi[crop_h:-crop_h, crop_w:-crop_w]
                 else:
                     depth_roi_central = depth_roi
                 
-                # Use Median depth - robust against outliers
                 if depth_roi_central.size > 0:
                     obj_depth = float(np.median(depth_roi_central))
                 else:
-                    # Fallback to center point if ROI somehow fails
                     obj_depth = float(depth_map[center_y, center_x])
             else:
                  obj_depth = float(depth_map[center_y, center_x])
-            # --- SMART DEPTH SAMPLING END ---
 
             det = {
                 "label": label,

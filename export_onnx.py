@@ -2,7 +2,6 @@ import sys
 import os
 import torch
 
-# Add current directory to path so we can import depth_anything_v2
 sys.path.append(os.getcwd())
 sys.path.append(os.path.join(os.getcwd(), 'Depth-Anything-V2'))
 
@@ -26,7 +25,6 @@ def export_onnx():
     model.load_state_dict(state_dict)
     model.eval()
     
-    # Input size 518x518 is the default used in infer_image
     dummy_input = torch.randn(1, 3, 518, 518)
     
     print(f"Exporting to {output_path}...")
